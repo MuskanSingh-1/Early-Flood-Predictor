@@ -1,0 +1,194 @@
+{
+  "National": {
+    "Disaster Helpline": "112",
+    "NDRF Helpline": "9711077372",
+    "NDMA Helpline": "1078",
+    "NDMA Office": "01126701700",
+    "Army Helpline": "01123332045",
+    "MHA Control Room": "01123093054"
+  },
+
+  "Andhra Pradesh": {
+    "Flood Helpline": "1070",
+    "State Control Room": "08662410373"
+  },
+
+  "Arunachal Pradesh": {
+    "Flood Helpline": "1077",
+    "State Control Room": "03602216664"
+  },
+
+  "Assam": {
+    "Flood Helpline": "1070",
+    "State Control Room": "03612237219"
+  },
+
+  "Bihar": {
+    "NDMA Helpline": "1078",
+    "State Control Room": "06122294204"
+  },
+
+  "Chhattisgarh": {
+    "Flood Helpline": "1070",
+    "State Control Room": "07712441792"
+  },
+
+  "Goa": {
+    "Disaster Helpline": "1077",
+    "Control Room": "08322413487"
+  },
+
+  "Gujarat": {
+    "Flood Helpline": "1078",
+    "State Control Room": "07923276944"
+  },
+
+  "Haryana": {
+    "Flood Helpline": "1077",
+    "State Control Room": "0172254938"
+  },
+
+  "Himachal Pradesh": {
+    "Flood Helpline": "1070",
+    "District Control Room": "1077"
+  },
+
+  "Jharkhand": {
+    "Flood Helpline": "1070",
+    "State Control Room": "06512401487"
+  },
+
+  "Karnataka": {
+    "Flood Helpline": "0801070",
+    "Control Room": "08022340676",
+    "WhatsApp": "9008405955"
+  },
+
+  "Kerala": {
+    "Flood Helpline": "1070",
+    "District Helpline": "1077"
+  },
+
+  "Madhya Pradesh": {
+    "Flood Helpline": "1070",
+    "State Control Room": "07552440549"
+  },
+
+  "Maharashtra": {
+    "Flood Helpline": "1916",
+    "Emergency Services": "108",
+    "MMRDA Control Room": "02226591241"
+  },
+
+  "Manipur": {
+    "Disaster Helpline": "1070",
+    "State Control Room": "03852441381"
+  },
+
+  "Meghalaya": {
+    "Disaster Helpline": "1077",
+    "State Control Room": "03642506502"
+  },
+
+  "Mizoram": {
+    "Disaster Helpline": "1070",
+    "State Control Room": "03892324367"
+  },
+
+  "Nagaland": {
+    "Disaster Helpline": "1070",
+    "Control Room": "03702293803"
+  },
+
+  "Odisha": {
+    "Flood Helpline": "1078",
+    "State Control Room": "06742395398"
+  },
+
+  "Punjab": {
+    "Flood Helpline": "1078",
+    "Municipal Helpline": "01612749120"
+  },
+
+  "Rajasthan": {
+    "Flood Helpline": "1078",
+    "State Control Room": "01412385060"
+  },
+
+  "Sikkim": {
+    "Disaster Helpline": "1070",
+    "State Control Room": "03592202603"
+  },
+
+  "Tamil Nadu": {
+    "Flood Helpline": "1070",
+    "Control Room": "1077",
+    "WhatsApp": "9445869848"
+  },
+
+  "Telangana": {
+    "Flood Helpline": "100",
+    "Emergency Services": "112",
+    "GHMC Control Room": "9000113667"
+  },
+
+  "Tripura": {
+    "Flood Helpline": "1070",
+    "Control Room": "03812416045"
+  },
+
+  "Uttar Pradesh": {
+    "NDMA Helpline": "1078",
+    "State Control Room": "05222230009"
+  },
+
+  "Uttarakhand": {
+    "Flood Helpline": "1070",
+    "Alternate Helpline": "9557444486"
+  },
+
+  "West Bengal": {
+    "Flood Helpline": "1070",
+    "State Control Room": "03322143526"
+  },
+
+  "Andaman and Nicobar Islands": {
+    "Disaster Helpline": "1077",
+    "Control Room": "03192232960"
+  },
+
+  "Chandigarh": {
+    "Disaster Helpline": "1077",
+    "Control Room": "01722744100"
+  },
+
+  "Dadra and Nagar Haveli and Daman and Diu": {
+    "Disaster Helpline": "1077",
+    "Control Room": "02602235444"
+  },
+
+  "Delhi": {
+    "Flood Helpline": "1077",
+    "State Control Room": "01124611210"
+  },
+
+  "Jammu and Kashmir": {
+    "Flood Helpline": "1070",
+    "Control Room": "01912451459"
+  },
+
+  "Ladakh": {
+    "Disaster Helpline": "1077",
+    "Control Room": "01982251100"
+  },
+
+  "Lakshadweep": {
+    "Disaster Helpline": "1077",
+    "Control Room": "04896262202"
+  },
+
+  "Puducherry": {
+    "Disaster Helpline": "1077",
+    "Control Room": "04132233239"
+  }
+}
