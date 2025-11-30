@@ -252,28 +252,28 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             risk_level = "Moderate"
             risk_level = "High"
 
+        features_for_frontend = {
+            "temp": temp,
+            "humidity": humidity,
+            "wind_speed": wind_speed,
+            "rainfall": rainfall
+        }
+
         return {
             "status": "success",
             "state": state,
             "district": district,
 
-            # --- LIVE WEATHER VALUES TO DISPLAY IN APP ---
-            "current_weather": {
-                "Temperature (°C)": temp,
-                "Humidity (%)": humidity,
-                "Wind Speed (m/s)": wind_speed,
-                "Rainfall (mm)": rainfall
-            },
-
-            # --- COMPUTED MODEL FEATURES ---
-            "Flood_Impact_Index": round(Flood_Impact_Index, 4),
+            # Backward-compatible object used by app.js (it looks for data.features or data.features_used)
+            "features": features_for_frontend,
+            "features_used": features_for_frontend,    # extra compatibility (some UI variants)
             "model_features_used": dict(zip(TRAINING_FEATURE_ORDER, training_values)),
 
-            # --- MODEL OUTPUT ---
+            # Flood impact + model outputs
+            "Flood_Impact_Index": round(Flood_Impact_Index, 4),
             "predicted_flood_risk": round(pred, 4),
             "risk_level": risk_level
         }
-
 
     except Exception as e:
         print("\n🔥 Inference error:", e)
