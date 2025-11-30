@@ -6,13 +6,12 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
 from auth import User
 import lightgbm as lgb
 import traceback
 
-# ==============================
-# WEATHER FETCH FUNCTION (City-based)
-# ==============================
+# WEATHER FETCH FUNCTION
 API_KEY = "3a3c8df5e95f29bd818c6649a2abf589"
 
 def get_weather_data(district, state=None):
@@ -28,19 +27,14 @@ def get_weather_data(district, state=None):
         print(f"Weather fetch error: {e}")
         return None
 
-
-# ==============================
 # CONFIGURATION
-# ==============================
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY") or API_KEY
 if not OPENWEATHER_API_KEY:
     raise RuntimeError("❌ Please set your OpenWeatherMap API key using: set OPENWEATHER_API_KEY=your_api_key_here")
 
 MODEL_PATH = "ensemble_1.pkl"
 
-# ==============================
 # MODEL LOADING
-# ==============================
 try:
     with open(MODEL_PATH, "rb") as f:
         model_data = pickle.load(f)
@@ -71,11 +65,8 @@ try:
 except Exception as e:
     raise RuntimeError(f"❌ Error loading model: {e}")
 
-
-# ==============================
 # FASTAPI APP INITIALIZATION
-# ==============================
-user_handler = User()  # session + DB handler
+user_handler = User()
 app = FastAPI(title="🌊 Early Flood Predictor API", version="3.0")
 
 app.add_middleware(
@@ -86,17 +77,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ==============================
 # REQUEST BODY MODEL
-# ==============================
 class FloodRequest(BaseModel):
     timestamp: float = 0.0
 
-
-# ==============================
 # CASE-INSENSITIVE COORDINATE LOOKUP
-# ==============================
 def get_coordinates(state: str, district: str):
     try:
         with open("indian_district_coordinates.json", "r", encoding="utf-8") as f:
@@ -114,10 +99,7 @@ def get_coordinates(state: str, district: str):
 
     return data[state_key][district_key]
 
-
-# ==============================
 # WEATHER FETCH FUNCTION (Coordinate-based)
-# ==============================
 def get_weather(lat: float, lon: float):
     params = {"lat": lat, "lon": lon, "appid": OPENWEATHER_API_KEY, "units": "metric"}
     try:
@@ -130,10 +112,7 @@ def get_weather(lat: float, lon: float):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Weather fetch error: {e}")
 
-
-# ==============================
-# SAFE PREDICT FUNCTION (FIXED)
-# ==============================
+# SAFE PREDICT FUNCTION
 def safe_predict(model, X: pd.DataFrame):
     """Predict safely for LightGBM Booster or ensemble of Boosters with feature shape check."""
     try:
@@ -185,13 +164,36 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-# ==============================
 # PREDICTION ENDPOINT
-# ==============================
+# ---- TRAINED FEATURE ORDER ----
+FEATURE_ORDER = [
+    "Flood_Frequency",
+    "Mean_Duration",
+    "Human_fatality",
+    "Human_injured",
+    "Population",
+    "Corrected_Percent_Flooded_Area",
+    "Population_Exposure_Ratio",
+    "Area_Exposure",
+    "Mean_Flood_Duration",
+    "Percent_Flooded_Area",
+    "Parmanent_Water",
+    "Year"
+]
+
+# ---- FLOOD IMPACT CONSTANTS ----
+ALPHA = 0.0475
+BETA = 0.1057
+GAMMA = 0.8468
+
+
 @app.post("/predict/{state}/{district}")
 def predict_flood(state: str, district: str, req: FloodRequest):
     try:
+        # → Fetch coordinates
         coords = get_coordinates(state, district)
+
+        # → Weather
         weather = get_weather(coords["lat"], coords["lon"])
 
         temp = weather["main"].get("temp", 0.0)
@@ -200,32 +202,46 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         wind_speed = weather.get("wind", {}).get("speed", 0.0)
         rainfall = weather.get("rain", {}).get("1h", 0.0) or weather.get("rain", {}).get("3h", 0.0) or 0.0
 
-        # Full feature list
-        features_dict = {
-            "lat": coords["lat"],
-            "lon": coords["lon"],
-            "temp": temp,
-            "humidity": humidity,
-            "pressure": pressure,
-            "wind_speed": wind_speed,
-            "rainfall": rainfall,
-            "timestamp": req.timestamp,
+        # ----- FEATURE ENGINEERING MAPPED TO TRAINED FEATURES -----
+
+        rainfall_intensity = min(rainfall / 50, 1)   # normalized 0–1
+        duration_estimate = min(rainfall / 5, 1)     # rough duration signal
+
+        feature_values = {
+            "Flood_Frequency": rainfall + (humidity / 100),
+            "Mean_Duration": duration_estimate,
+            "Human_fatality": 0.0, 
+            "Human_injured": 0.0,
+            "Population": 0.0,  
+            "Corrected_Percent_Flooded_Area": rainfall_intensity,
+            "Population_Exposure_Ratio": humidity / 100,
+            "Area_Exposure": rainfall * wind_speed,
+            "Mean_Flood_Duration": duration_estimate,
+            "Percent_Flooded_Area": rainfall_intensity,
+            "Parmanent_Water": 0.0,
+            "Year": datetime.now().year
         }
 
-        # Add dummy features (still fine even if trimmed)
-        for i in range(7):
-            features_dict[f"extra_feature_{i+1}"] = 0.0
+        # → Convert to DataFrame in EXACT ORDER
+        X = pd.DataFrame([[feature_values[f] for f in FEATURE_ORDER]], columns=FEATURE_ORDER)
 
-        features = pd.DataFrame([features_dict])
+        # → Predict risk index
+        risk_pred = float(safe_predict(model, X)[0])
 
-        # Predict safely
-        pred = float(safe_predict(model, features)[0])
+        # → Compute Flood Impact Index (weighted)
+        Flood_Impact_Index = (
+            risk_pred
+            * (1 + ALPHA * feature_values["Mean_Duration"])
+            * (1 + BETA * feature_values["Flood_Frequency"])
+            * (1 + GAMMA * feature_values["Population_Exposure_Ratio"])
+        )
 
-        # Risk classification
-        if pred < 0.33:
+        # → Classify
+        if Flood_Impact_Index < 0.33:
             risk_level = "Low"
-        elif pred < 0.66:
+        elif Flood_Impact_Index < 0.66:
             risk_level = "Moderate"
+            # You want moderate here you okay ?
         else:
             risk_level = "High"
 
@@ -233,13 +249,20 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             "status": "success",
             "state": state,
             "district": district,
-            "features_used": features_dict,
-            "predicted_flood_risk": round(pred, 4),
+            "trained_features_used": feature_values,
+            "model_predicted_risk": round(risk_pred, 4),
+            "final_flood_impact_index": round(Flood_Impact_Index, 4),
             "risk_level": risk_level,
+            "weather_raw": {
+                "temp": temp,
+                "humidity": humidity,
+                "pressure": pressure,
+                "wind_speed": wind_speed,
+                "rainfall": rainfall
+            }
         }
 
     except Exception as e:
-        print("\n🔥 Inference error:", e)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Inference error: {e}")
 
@@ -283,9 +306,7 @@ def logout(token: str):
         user_handler.logout(uid)
     return {"status": "success", "message": "Logged out successfully"}
 
-# ==============================
 # ROOT ENDPOINT
-# ==============================
 @app.get("/")
 def root():
     return {"message": "🌊 Early Flood Predictor API is running successfully!"}
