@@ -199,9 +199,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         rainfall = weather.get("rain", {}).get("1h", 0.0) or weather.get("rain", {}).get("3h", 0.0) or 0.0
         year = int(pd.Timestamp.now().year)
 
-        # ------------------------------------------------------
         # STEP 1: Convert live weather to training features
-        # ------------------------------------------------------
 
         # These baseline assumptions will be replaced with your historical dataset stats
         Flood_Frequency = rainfall / 50          # heuristic – adjust as needed
@@ -216,9 +214,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         Percent_Flooded_Area = rainfall * 0.5
         Parmanent_Water = humidity / 120
 
-        # ------------------------------------------------------
         # STEP 2: COMPUTE Flood_Impact_Index USING YOUR FORMULA
-        # ------------------------------------------------------
         Flood_Risk_Index = rainfall + humidity + temp / 10
 
         Flood_Impact_Index = (
@@ -228,9 +224,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             (1 + GAMMA * Population_Exposure_Ratio)
         )
 
-        # ------------------------------------------------------
         # STEP 3: Build model input EXACTLY IN TRAINING ORDER
-        # ------------------------------------------------------
         training_values = [
             Flood_Frequency,
             Mean_Duration,
@@ -248,14 +242,10 @@ def predict_flood(state: str, district: str, req: FloodRequest):
 
         features = pd.DataFrame([training_values], columns=TRAINING_FEATURE_ORDER)
 
-        # ------------------------------------------------------
         # STEP 4: Predict flood risk using trained model
-        # ------------------------------------------------------
         pred = float(safe_predict(model, features)[0])
 
-        # ------------------------------------------------------
         # STEP 5: Final risk interpretation
-        # ------------------------------------------------------
         if pred < 0.33:
             risk_level = "Low"
         elif pred < 0.66:
@@ -266,17 +256,24 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             "status": "success",
             "state": state,
             "district": district,
-            "live_weather": {
-                "Temperature": temp,
-                "Humidity": humidity,
-                "Rainfall": rainfall,
-                "Wind Speed": wind_speed
+
+            # --- LIVE WEATHER VALUES TO DISPLAY IN APP ---
+            "current_weather": {
+                "Temperature (°C)": temp,
+                "Humidity (%)": humidity,
+                "Wind Speed (m/s)": wind_speed,
+                "Rainfall (mm)": rainfall
             },
+
+            # --- COMPUTED MODEL FEATURES ---
             "Flood_Impact_Index": round(Flood_Impact_Index, 4),
             "model_features_used": dict(zip(TRAINING_FEATURE_ORDER, training_values)),
+
+            # --- MODEL OUTPUT ---
             "predicted_flood_risk": round(pred, 4),
             "risk_level": risk_level
         }
+
 
     except Exception as e:
         print("\n🔥 Inference error:", e)
