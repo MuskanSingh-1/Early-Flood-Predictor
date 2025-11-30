@@ -165,8 +165,7 @@ class LoginRequest(BaseModel):
     password: str
 
 # PREDICTION ENDPOINT
-# ---- TRAINED FEATURE ORDER ----
-FEATURE_ORDER = [
+TRAINING_FEATURE_ORDER = [
     "Flood_Frequency",
     "Mean_Duration",
     "Human_fatality",
@@ -181,7 +180,7 @@ FEATURE_ORDER = [
     "Year"
 ]
 
-# ---- FLOOD IMPACT CONSTANTS ----
+# FLOOD IMPACT CONSTANTS
 ALPHA = 0.0475
 BETA = 0.1057
 GAMMA = 0.8468
@@ -190,10 +189,7 @@ GAMMA = 0.8468
 @app.post("/predict/{state}/{district}")
 def predict_flood(state: str, district: str, req: FloodRequest):
     try:
-        # → Fetch coordinates
         coords = get_coordinates(state, district)
-
-        # → Weather
         weather = get_weather(coords["lat"], coords["lon"])
 
         temp = weather["main"].get("temp", 0.0)
@@ -201,68 +197,89 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         pressure = weather["main"].get("pressure", 0.0)
         wind_speed = weather.get("wind", {}).get("speed", 0.0)
         rainfall = weather.get("rain", {}).get("1h", 0.0) or weather.get("rain", {}).get("3h", 0.0) or 0.0
+        year = int(pd.Timestamp.now().year)
 
-        # ----- FEATURE ENGINEERING MAPPED TO TRAINED FEATURES -----
+        # ------------------------------------------------------
+        # STEP 1: Convert live weather to training features
+        # ------------------------------------------------------
 
-        rainfall_intensity = min(rainfall / 50, 1)   # normalized 0–1
-        duration_estimate = min(rainfall / 5, 1)     # rough duration signal
+        # These baseline assumptions will be replaced with your historical dataset stats
+        Flood_Frequency = rainfall / 50          # heuristic – adjust as needed
+        Mean_Duration = rainfall / 10            # rainfall as proxy for duration
+        Human_fatality = 0                       # real-time cannot provide this
+        Human_injured = 0
+        Population = 500000                      # district-level default
+        Corrected_Percent_Flooded_Area = rainfall * 0.4
+        Population_Exposure_Ratio = humidity / 100
+        Area_Exposure = rainfall * 0.2
+        Mean_Flood_Duration = rainfall / 8
+        Percent_Flooded_Area = rainfall * 0.5
+        Parmanent_Water = humidity / 120
 
-        feature_values = {
-            "Flood_Frequency": rainfall + (humidity / 100),
-            "Mean_Duration": duration_estimate,
-            "Human_fatality": 0.0, 
-            "Human_injured": 0.0,
-            "Population": 0.0,  
-            "Corrected_Percent_Flooded_Area": rainfall_intensity,
-            "Population_Exposure_Ratio": humidity / 100,
-            "Area_Exposure": rainfall * wind_speed,
-            "Mean_Flood_Duration": duration_estimate,
-            "Percent_Flooded_Area": rainfall_intensity,
-            "Parmanent_Water": 0.0,
-            "Year": datetime.now().year
-        }
+        # ------------------------------------------------------
+        # STEP 2: COMPUTE Flood_Impact_Index USING YOUR FORMULA
+        # ------------------------------------------------------
+        Flood_Risk_Index = rainfall + humidity + temp / 10
 
-        # → Convert to DataFrame in EXACT ORDER
-        X = pd.DataFrame([[feature_values[f] for f in FEATURE_ORDER]], columns=FEATURE_ORDER)
-
-        # → Predict risk index
-        risk_pred = float(safe_predict(model, X)[0])
-
-        # → Compute Flood Impact Index (weighted)
         Flood_Impact_Index = (
-            risk_pred
-            * (1 + ALPHA * feature_values["Mean_Duration"])
-            * (1 + BETA * feature_values["Flood_Frequency"])
-            * (1 + GAMMA * feature_values["Population_Exposure_Ratio"])
+            Flood_Risk_Index *
+            (1 + ALPHA * Mean_Duration) *
+            (1 + BETA * Flood_Frequency) *
+            (1 + GAMMA * Population_Exposure_Ratio)
         )
 
-        # → Classify
-        if Flood_Impact_Index < 0.33:
+        # ------------------------------------------------------
+        # STEP 3: Build model input EXACTLY IN TRAINING ORDER
+        # ------------------------------------------------------
+        training_values = [
+            Flood_Frequency,
+            Mean_Duration,
+            Human_fatality,
+            Human_injured,
+            Population,
+            Corrected_Percent_Flooded_Area,
+            Population_Exposure_Ratio,
+            Area_Exposure,
+            Mean_Flood_Duration,
+            Percent_Flooded_Area,
+            Parmanent_Water,
+            year
+        ]
+
+        features = pd.DataFrame([training_values], columns=TRAINING_FEATURE_ORDER)
+
+        # ------------------------------------------------------
+        # STEP 4: Predict flood risk using trained model
+        # ------------------------------------------------------
+        pred = float(safe_predict(model, features)[0])
+
+        # ------------------------------------------------------
+        # STEP 5: Final risk interpretation
+        # ------------------------------------------------------
+        if pred < 0.33:
             risk_level = "Low"
-        elif Flood_Impact_Index < 0.66:
+        elif pred < 0.66:
             risk_level = "Moderate"
-            # You want moderate here you okay ?
-        else:
             risk_level = "High"
 
         return {
             "status": "success",
             "state": state,
             "district": district,
-            "trained_features_used": feature_values,
-            "model_predicted_risk": round(risk_pred, 4),
-            "final_flood_impact_index": round(Flood_Impact_Index, 4),
-            "risk_level": risk_level,
-            "weather_raw": {
-                "temp": temp,
-                "humidity": humidity,
-                "pressure": pressure,
-                "wind_speed": wind_speed,
-                "rainfall": rainfall
-            }
+            "live_weather": {
+                "Temperature": temp,
+                "Humidity": humidity,
+                "Rainfall": rainfall,
+                "Wind Speed": wind_speed
+            },
+            "Flood_Impact_Index": round(Flood_Impact_Index, 4),
+            "model_features_used": dict(zip(TRAINING_FEATURE_ORDER, training_values)),
+            "predicted_flood_risk": round(pred, 4),
+            "risk_level": risk_level
         }
 
     except Exception as e:
+        print("\n🔥 Inference error:", e)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Inference error: {e}")
 
