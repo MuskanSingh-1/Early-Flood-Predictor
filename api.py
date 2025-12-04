@@ -210,7 +210,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         Population = 1460000
 
         Percent_Flooded_Area = min(100.0, max(0.0, (rainfall * 10) + (humidity * 0.05) + (wind_speed * 2)))
-        ExposedPopulation = Population × (Percent_Flooded_Area / 100)
+        ExposedPopulation = Population * (Percent_Flooded_Area / 100)
         Population_Exposure_Ratio = ExposedPopulation / Population
 
         Corrected_Percent_Flooded_Area = Percent_Flooded_Area
@@ -340,3 +340,4 @@ def logout(token: str):
 @app.get("/")
 def root():
     return {"message": "🌊 Early Flood Predictor API is running successfully!"}
+
