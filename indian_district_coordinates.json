@@ -933,6 +933,28 @@
       "lon": 76.272052
     }
   },
+  "Jammu and Kashmir": {
+    "Anantnag": { "lat": 33.7310, "lon": 75.1487 },
+    "Bandipora": { "lat": 34.4229, "lon": 74.6370 },
+    "Baramulla": { "lat": 34.2090, "lon": 74.3429 },
+    "Budgam": { "lat": 34.0186, "lon": 74.7270 },
+    "Doda": { "lat": 33.1480, "lon": 75.5490 },
+    "Ganderbal": { "lat": 34.2160, "lon": 74.7740 },
+    "Jammu": { "lat": 32.7266, "lon": 74.8570 },
+    "Kathua": { "lat": 32.3860, "lon": 75.5173 },
+    "Kishtwar": { "lat": 33.3110, "lon": 75.7660 },
+    "Kulgam": { "lat": 33.6440, "lon": 75.0190 },
+    "Kupwara": { "lat": 34.5263, "lon": 74.2530 },
+    "Poonch": { "lat": 33.7689, "lon": 74.0920 },
+    "Pulwama": { "lat": 33.8730, "lon": 74.8990 },
+    "Rajouri": { "lat": 33.3783, "lon": 74.3090 },
+    "Ramban": { "lat": 33.2457, "lon": 75.2422 },
+    "Reasi": { "lat": 33.0819, "lon": 74.8326 },
+    "Samba": { "lat": 32.5620, "lon": 75.1120 },
+    "Shopian": { "lat": 33.7170, "lon": 74.8340 },
+    "Srinagar": { "lat": 34.0837, "lon": 74.7973 },
+    "Udhampur": { "lat": 32.9166, "lon": 75.1416 }
+  },
   "Jharkhand": {
     "Bokaro": {
       "lat": 23.654434,
