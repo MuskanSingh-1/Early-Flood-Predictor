@@ -196,7 +196,8 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         humidity = weather["main"].get("humidity", 0.0)
         pressure = weather["main"].get("pressure", 0.0)
         wind_speed = weather.get("wind", {}).get("speed", 0.0)
-        rainfall = weather.get("rain", {}).get("1h", 0.0) or weather.get("rain", {}).get("3h", 0.0) or 0.0
+        rain = weather.get("rain", {})
+        rainfall = rain.get("1h") if "1h" in rain else rain.get("3h", 0.0)
         year = int(pd.Timestamp.now().year)
 
         # STEP 1: Converting live weather to training features
@@ -208,8 +209,10 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         Human_injured = 0
         Population = 1460000
 
-        Percent_Flooded_Area = max(0.0, min(100.0, rainfall * 0.5))
-        Population_Exposure_Ratio = Percent_Flooded_Area / 100.0
+        Percent_Flooded_Area = min(100.0, max(0.0, (rainfall * 10) + (humidity * 0.05) + (wind_speed * 2)))
+        ExposedPopulation = Population × (Percent_Flooded_Area / 100)
+        Population_Exposure_Ratio = ExposedPopulation / Population
+
         Corrected_Percent_Flooded_Area = Percent_Flooded_Area
         Area_Exposure = Percent_Flooded_Area / 100.0
         Mean_Flood_Duration = rainfall / 8.0
@@ -250,7 +253,9 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         features = pd.DataFrame([training_values], columns=TRAINING_FEATURE_ORDER)
 
         # STEP 4: Predict flood risk using trained model
-        pred = float(safe_predict(model, features)[0])
+        Normalized_Risk = min(1.0, Flood_Impact_Index / 100)
+        pred = Normalized_Risk
+
 
         # STEP 5: Final risk interpretation
         if pred < 0.33:
