@@ -215,12 +215,6 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         Mean_Flood_Duration = rainfall / 8.0
         Parmanent_Water = humidity / 120.0
 
-        Population_Exposure_Ratio = humidity / 100
-        Area_Exposure = rainfall * 0.2
-        Mean_Flood_Duration = rainfall / 8
-        Percent_Flooded_Area = rainfall * 0.5
-        Parmanent_Water = humidity / 120
-
         Flood_Risk_Index = rainfall + humidity + temp / 10
 
         # small baseline to avoid absolute zero
@@ -236,6 +230,22 @@ def predict_flood(state: str, district: str, req: FloodRequest):
 
         current_risk_score = min(1.0, Flood_Impact_Index / 10)
         pred = current_risk_score
+
+        training_values = [
+            Flood_Frequency,
+            Mean_Duration,
+            Human_fatality,
+            Human_injured,
+            Population,
+            Corrected_Percent_Flooded_Area,
+            Population_Exposure_Ratio,
+            Area_Exposure,
+            Mean_Flood_Duration,
+            Percent_Flooded_Area,
+            Parmanent_Water,
+            year
+        ]
+
         features = pd.DataFrame([training_values], columns=TRAINING_FEATURE_ORDER)
 
         pred_ml = float(safe_predict(model, features)[0])
