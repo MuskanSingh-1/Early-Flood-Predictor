@@ -227,12 +227,20 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         # STEP 2: COMPUTE Flood_Impact_Index USING YOUR FORMULA
         Flood_Risk_Index = rainfall + humidity + temp / 10
 
-        Flood_Impact_Index = (
-            Flood_Risk_Index *
+        # small baseline to avoid absolute zero
+        EPSILON = 0.05
+
+        base_risk = max(rainfall, EPSILON)
+
+        Flood_Impact_Index = base_risk * (
             (1 + ALPHA * Mean_Duration) *
             (1 + BETA * Flood_Frequency) *
             (1 + GAMMA * Population_Exposure_Ratio)
         )
+
+        Normalized_Risk = min(1.0, Flood_Impact_Index / 100)
+        pred = Normalized_Risk
+
 
         # STEP 3: Build model input EXACTLY IN TRAINING ORDER
         training_values = [
@@ -340,4 +348,3 @@ def logout(token: str):
 @app.get("/")
 def root():
     return {"message": "🌊 Early Flood Predictor API is running successfully!"}
-
