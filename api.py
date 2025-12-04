@@ -200,12 +200,9 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         rainfall = rain.get("1h") if "1h" in rain else rain.get("3h", 0.0)
         year = int(pd.Timestamp.now().year)
 
-        # STEP 1: Converting live weather to training features
-
-        # These baseline assumptions will be replaced with your historical dataset stats
-        Flood_Frequency = rainfall / 50          # heuristic – adjust as needed
-        Mean_Duration = rainfall / 10            # rainfall as proxy for duration
-        Human_fatality = 0                       # real-time cannot provide this
+        Flood_Frequency = rainfall / 50          
+        Mean_Duration = rainfall / 10            
+        Human_fatality = 0                       
         Human_injured = 0
         Population = 1460000
 
@@ -224,7 +221,6 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         Percent_Flooded_Area = rainfall * 0.5
         Parmanent_Water = humidity / 120
 
-        # STEP 2: COMPUTE Flood_Impact_Index USING YOUR FORMULA
         Flood_Risk_Index = rainfall + humidity + temp / 10
 
         # small baseline to avoid absolute zero
@@ -238,37 +234,16 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             (1 + GAMMA * Population_Exposure_Ratio)
         )
 
-        Normalized_Risk = min(1.0, Flood_Impact_Index / 100)
-        pred = Normalized_Risk
-
-
-        # STEP 3: Build model input EXACTLY IN TRAINING ORDER
-        training_values = [
-            Flood_Frequency,
-            Mean_Duration,
-            Human_fatality,
-            Human_injured,
-            Population,
-            Corrected_Percent_Flooded_Area,
-            Population_Exposure_Ratio,
-            Area_Exposure,
-            Mean_Flood_Duration,
-            Percent_Flooded_Area,
-            Parmanent_Water,
-            year
-        ]
-
+        current_risk_score = min(1.0, Flood_Impact_Index / 10)
+        pred = current_risk_score
         features = pd.DataFrame([training_values], columns=TRAINING_FEATURE_ORDER)
 
-        # STEP 4: Predict flood risk using trained model
-        Normalized_Risk = min(1.0, Flood_Impact_Index / 100)
-        pred = Normalized_Risk
-
+        pred_ml = float(safe_predict(model, features)[0])
 
         # STEP 5: Final risk interpretation
-        if pred < 0.33:
+        if pred_ml < 0.33:
             risk_level = "Low"
-        elif pred < 0.66:
+        elif pred_ml < 0.66:
             risk_level = "Moderate"
         else:
             risk_level = "High"
