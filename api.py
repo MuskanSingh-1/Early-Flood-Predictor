@@ -199,15 +199,22 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         rainfall = weather.get("rain", {}).get("1h", 0.0) or weather.get("rain", {}).get("3h", 0.0) or 0.0
         year = int(pd.Timestamp.now().year)
 
-        # STEP 1: Convert live weather to training features
+        # STEP 1: Converting live weather to training features
 
         # These baseline assumptions will be replaced with your historical dataset stats
         Flood_Frequency = rainfall / 50          # heuristic – adjust as needed
         Mean_Duration = rainfall / 10            # rainfall as proxy for duration
         Human_fatality = 0                       # real-time cannot provide this
         Human_injured = 0
-        Population = 500000                      # district-level default
-        Corrected_Percent_Flooded_Area = rainfall * 0.4
+        Population = 1460000
+
+        Percent_Flooded_Area = max(0.0, min(100.0, rainfall * 0.5))
+        Population_Exposure_Ratio = Percent_Flooded_Area / 100.0
+        Corrected_Percent_Flooded_Area = Percent_Flooded_Area
+        Area_Exposure = Percent_Flooded_Area / 100.0
+        Mean_Flood_Duration = rainfall / 8.0
+        Parmanent_Water = humidity / 120.0
+
         Population_Exposure_Ratio = humidity / 100
         Area_Exposure = rainfall * 0.2
         Mean_Flood_Duration = rainfall / 8
@@ -250,14 +257,8 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             risk_level = "Low"
         elif pred < 0.66:
             risk_level = "Moderate"
+        else:
             risk_level = "High"
-
-        features_for_frontend = {
-            "temp": temp,
-            "humidity": humidity,
-            "wind_speed": wind_speed,
-            "rainfall": rainfall
-        }
 
         features_for_frontend = {
             "temp": temp,
