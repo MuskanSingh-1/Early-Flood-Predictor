@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+  <title>Early Flood Predictor — Frontend</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:;base64,=">
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="app__bar">
+      <div class="app__brand">
+        <div class="app__title" style="font-size:22px; font-weight:700;">
+          SACHETNA
+        </div>
+      </div>
+
+      <nav class="app__actions">
+        <div id="auth-controls" class="auth-controls">
+          <button id="btn-login" class="btn btn--ghost">Login</button>
+          <button id="btn-signup" class="btn btn--primary">Sign up</button>
+        </div>
+
+        <!-- 👤 Logged-in user dropdown -->
+        <div id="user-controls" class="profile-controls hidden">
+          <button id="profile-btn" class="profile-icon" aria-haspopup="true" aria-expanded="false">👤</button>
+          <div id="profile-menu" class="profile-menu hidden">
+            <button id="btn-profile" class="menu-item">Profile</button>
+            <button id="btn-logout" class="menu-item">Logout</button>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="app__main">
+      <!-- Home -->
+      <section id="view-home" class="view active">
+        <div class="card card--hero">
+          <div class="hero-left">
+            <h1>Stay safe — check flood risk for your district</h1>
+            <p class="muted">Use this app to get district-level flood alerts. Predictions require login.</p>
+            <div class="hero-actions">
+              <button id="cta-predict" class="btn btn--primary">Predict now</button>
+              <button id="cta-emergency" class="btn btn--primary">Emergency</button>
+            </div>
+          </div>
+          <div class="hero-right">
+            <div class="card card--narrow">
+              <div class="muted">Last prediction</div>
+              <div id="last-pred" style="font-weight:600;">No predictions yet</div>
+              <div class="muted" style="margin-top:6px;">Status: <span id="app-status">Idle</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Predict -->
+      <section id="view-predict" class="view">
+        <div class="card card--wide">
+          <h2>Predict Flood Risk</h2>
+          <div class="muted small">Select state and district, then run prediction.</div>
+          <div class="grid">
+            <div>
+              <div class="field">
+                <label class="field__label" for="state-input">Search State</label>
+                <input type="text" id="state-input" placeholder="Type to filter states">
+              </div>
+              <div class="field">
+                <label class="field__label">Select State</label>
+                <select id="stateSelect"></select>
+              </div>
+              <div class="field">
+                <label class="field__label">Select District</label>
+                <select id="districtSelect"></select>
+              </div>
+              <div class="row">
+                <button id="predictBtn" class="btn btn--primary">Predict</button>
+                <button id="resetBtn" class="btn btn--primary">Reset</button>
+              </div>
+              <div class="note" id="predictStatus">Ready.</div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section id="view-results" class="view">
+        <div class="card card--result">
+          <div class="result-header">
+            <div>
+              <h2>Prediction Result</h2>
+              <div id="resultTime" class="muted small"></div>
+            </div>
+            <div id="riskBadge" class="risk-badge">--</div>
+          </div>
+          <div class="result-grid">
+            <div class="metric-tile">
+              <div class="metric-title">District</div>
+              <div id="resultDistrict" class="metric-value">N/A</div>
+            </div>
+
+            <div class="metric-tile">
+              <div class="metric-title">Risk Score</div>
+              <div id="resultScore" class="metric-value">N/A</div>
+            </div>
+
+            <div class="metric-tile">
+              <div class="metric-title">Temperature (°C)</div>
+              <div id="resultTemp" class="metric-value">N/A</div>
+            </div>
+
+            <div class="metric-tile">
+              <div class="metric-title">Humidity (%)</div>
+              <div id="resultHumidity" class="metric-value">N/A</div>
+            </div>
+
+            <div class="metric-tile">
+              <div class="metric-title">Rainfall (mm)</div>
+              <div id="resultRain" class="metric-value">N/A</div>
+            </div>
+
+            <div class="metric-tile">
+              <div class="metric-title">Wind Speed (m/s)</div>
+              <div id="resultWind" class="metric-value">N/A</div>
+            </div>
+            <div class="result-emergency-section">
+              <h3>Emergency Contacts</h3>
+              <div id="resultEmergencyList" class="contact-cards"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- How to Predict -->
+      <section id="view-about" class="view">
+        <div class="card">
+          <h2>How to Predict?</h2>
+          <p class="muted">Follow these steps to quickly get district-wise flood risk alerts.</p>
+
+          <ol style="margin: 12px 0 14px 18px; line-height: 1.6;">
+            <li><strong>Login or Sign Up</strong> using your account credentials.</li>
+            <li>Click on the <strong>Predict</strong> button in the top menu.</li>
+            <li>Choose your <strong>State</strong> from the dropdown list.</li>
+            <li>Select the <strong>District</strong> you want flood risk for.</li>
+            <li>Click on <strong>Predict</strong> and wait a moment.</li>
+            <li>You will get:
+              <ul style="margin-top:6px; padding-left:18px; list-style-type:circle;">
+                <li>Flood Risk Level (Low / Moderate / High)</li>
+                <li>Risk Score</li>
+                <li>Temperature</li>
+                <li>Humidity Level</li>
+                <li>Wind Speed</li>
+                <li>Rainfall Data</li>
+              </ul>
+            </li>
+            <li>Check <strong>Emergency Contacts</strong> if risk is Moderate or High.</li>
+          </ol>
+
+          <h3 style="margin-top: 14px;"> Safety Tips</h3>
+          <ul style="margin-left: 18px; line-height: 1.6;">
+            <li>Verify weather updates regularly during monsoon.</li>
+            <li>Prepare an emergency kit for high-risk areas.</li>
+            <li>Stay away from rivers and low-lying zones during alerts.</li>
+            <li>Save helpline contacts for quick action.</li>
+          </ul>
+
+          <p style="margin-top: 18px; font-weight: 600; text-align:center;">
+            Stay informed. Stay prepared. Stay safe.
+          </p>
+        </div>
+      </section>
+
+      <!-- Emergency -->
+      <section id="view-emergency" class="view">
+        <div class="card">
+          <h2>Emergency Contacts</h2>
+          <pre id="emergencyList" class="preview">Loading...</pre>
+        </div>
+      </section>
+
+      <!-- Profile -->
+      <section id="view-profile" class="view">
+        <div class="card card--narrow">
+          <h2>Your Profile</h2>
+          <div class="profile-header" style="margin-top:10px;">
+            <div class="avatar" id="profile-avatar">👤</div>
+            <div class="profile-meta">
+              <strong id="profile-username" style="font-size:16px;">User</strong>
+              <span class="muted small">Flood Safety Profile</span>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:18px;">
+            <p class="muted small">Account Information</p>
+            <ul style="padding-left:18px; line-height:1.6; margin-top:6px;">
+              <li><strong>Username:</strong> <span id="small-user">User</span>
+              <li><strong>Account Status:</strong> Verified</li>
+              <li><strong>Predictions Made:</strong> <span id="pred-count">0</span></li>
+            </ul>
+          </div>
+
+          <h3 style="margin-top:18px;">Recent Predictions</h3>
+          <div id="pred-list" class="pred-list">
+            <div class="muted small">No predictions yet.</div>
+          </div>
+
+          <p class="note" style="margin-top:18px;">
+            This dashboard shows your prediction history and helps you keep track of flood risk alerts for your area.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app__footer">© Early Flood Predictor — Version 1.0</footer>
+  </div>
+
+  <!-- 🔹 AUTH MODAL -->
+  <div id="authModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal__panel">
+      <button id="authClose" class="modal__close">&times;</button>
+      <h2 id="authTitle">Sign in</h2>
+
+      <div class="auth-tabs">
+        <button class="tab active" data-mode="login">Login</button>
+        <button class="tab" data-mode="signup">Sign Up</button>
+      </div>
+
+      <!-- LOGIN -->
+      <div id="loginFields" class="auth-form">
+        <input id="loginUser" type="text" placeholder="Username" autocomplete="username">
+        <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password">
+      </div>
+
+      <!-- SIGNUP -->
+      <div id="signupFields" class="auth-form hidden">
+        <input id="signupFull" type="text" placeholder="Full name">
+        <input id="signupUser" type="text" placeholder="Username">
+        <input id="signupPass" type="password" placeholder="Password">
+      </div>
+
+      <div class="row">
+        <button id="authSubmit" class="btn btn--primary">Login</button>
+        <button id="authCancel" class="btn btn--ghost">Cancel</button>
+      </div>
+      <div id="authMsg" class="note"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <!-- AI Disaster Assistant Trigger -->
+  <button id="ai-assistant-open" class="assistant-fab" aria-label="Open AI Disaster Assistant">
+    💬
+  </button>
+
+  <!-- AI Disaster Assistant Overlay -->
+  <div id="ai-assistant" class="assistant-overlay hidden" role="dialog" aria-modal="true">
+    <div class="assistant-panel">
+      <header class="assistant-header">
+        <div>
+          <h2 class="assistant-title">AI Disaster Assistant</h2>
+          <p class="assistant-subtitle">Professional guidance for flood & disaster safety</p>
+        </div>
+        <button id="ai-assistant-close" class="assistant-close" aria-label="Close assistant">✕</button>
+      </header>
+
+      <main class="assistant-body">
+        <section id="assistant-chat" class="assistant-chat" aria-live="polite">
+          <!-- Messages will be injected here by JS -->
+        </section>
+
+        <section class="assistant-faq">
+          <div class="assistant-faq-title">Quick questions you can ask:</div>
+          <div class="assistant-faq-list">
+            <button class="assistant-suggestion" data-q="What should I do immediately if my area receives a flood warning?">
+              Immediate steps during a flood warning
+            </button>
+            <button class="assistant-suggestion" data-q="What should I pack in a flood emergency kit?">
+              What to pack in an emergency kit
+            </button>
+            <button class="assistant-suggestion" data-q="How can I prepare my home before the monsoon season?">
+              Prepare home before monsoon
+            </button>
+            <button class="assistant-suggestion" data-q="How do I stay safe if I am already in floodwater?">
+              If I am already in floodwater
+            </button>
+            <button class="assistant-suggestion" data-q="What should I do if power goes out during heavy rain?">
+              Power cut during heavy rain
+            </button>
+            <button class="assistant-suggestion" data-q="How can I protect important documents during floods?">
+              Protecting important documents
+            </button>
+            <button class="assistant-suggestion" data-q="What should I do after the flood water recedes?">
+              After water recedes
+            </button>
+            <button class="assistant-suggestion" data-q="How can I help elderly or disabled family members in a flood?">
+              Helping elderly/disabled
+            </button>
+            <button class="assistant-suggestion" data-q="How do I stay informed about official flood alerts?">
+              Staying informed about alerts
+            </button>
+            <button class="assistant-suggestion" data-q="What should I teach children about flood safety?">
+              Teaching children about flood safety
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <footer class="assistant-input-row">
+        <input
+          id="assistant-input"
+          type="text"
+          placeholder="Ask a safety question (e.g., 'What should I do during a flood warning?')"
+          aria-label="Type your disaster safety question"
+        >
+        <button id="assistant-send" class="btn btn--primary">Send</button>
+      </footer>
+
+    </div>
+  </div>
+  
+  <footer class="bottom-nav">
+    <button class="bottom-item" id="bottom-home">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 3 2 12h3v8h6v-6h2v6h6v-8h3z"/>
+      </svg>
+      <span>Home</span>
+    </button>
+
+    <button class="bottom-item" id="bottom-predict">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="8"></circle>
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+      </svg>
+      <span>Predict</span>
+    </button>
+
+    <button class="bottom-item" id="bottom-emergency">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24c1.12.37 2.33.57 3.58.57a1 1 0 011 1v3.5a1 1 0 01-1 1C10.07 22.01 2 13.93 2 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.46.57 3.58a1 1 0 01-.24 1.01l-2.21 2.2z"/>
+      </svg>
+      <span>Emergency</span>
+    </button>
+
+    <button class="bottom-item" id="bottom-about">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+      </svg>
+      <span>How to Predict</span>
+    </button>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
