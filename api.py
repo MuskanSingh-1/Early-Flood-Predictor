@@ -12,7 +12,7 @@ import lightgbm as lgb
 import traceback
 
 # WEATHER FETCH FUNCTION
-API_KEY = "3a3c8df5e95f29bd818c6649a2abf589"
+API_KEY = "50db53675d6ca0c7eef38d07475a99a2"
 
 def get_weather_data(district, state=None):
     try:
@@ -100,17 +100,32 @@ def get_coordinates(state: str, district: str):
     return data[state_key][district_key]
 
 # WEATHER FETCH FUNCTION (Coordinate-based)
+weather_cache = {}
+
 def get_weather(lat: float, lon: float):
-    params = {"lat": lat, "lon": lon, "appid": OPENWEATHER_API_KEY, "units": "metric"}
-    try:
-        resp = requests.get("https://api.openweathermap.org/data/2.5/weather", params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        if "main" not in data:
-            raise HTTPException(status_code=500, detail=f"Weather API error: {data}")
-        return data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Weather fetch error: {e}")
+
+    key = f"{round(lat,2)}_{round(lon,2)}"
+
+    # return cached weather if within 10 minutes
+    if key in weather_cache:
+        cached_data, timestamp = weather_cache[key]
+        if time.time() - timestamp < 600:
+            return cached_data
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": OPENWEATHER_API_KEY,
+        "units": "metric"
+    }
+    resp = requests.get(
+        "https://api.openweathermap.org/data/2.5/weather",
+        params=params,
+        timeout=10
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    weather_cache[key] = (data, time.time())
+    return data
 
 # SAFE PREDICT FUNCTION
 def safe_predict(model, X: pd.DataFrame):
@@ -228,8 +243,11 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             (1 + GAMMA * Population_Exposure_Ratio)
         )
 
-        current_risk_score = min(1.0, Flood_Impact_Index / 10)
-        pred = current_risk_score
+        impact_min = 0.12
+        impact_max = 5.84
+
+        Flood_Impact_Normalized = (Flood_Impact_Index - impact_min) / (impact_max - impact_min)
+        Flood_Impact_Normalized = max(0, min(1, Flood_Impact_Normalized))
 
         training_values = [
             Flood_Frequency,
@@ -240,6 +258,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             Corrected_Percent_Flooded_Area,
             Population_Exposure_Ratio,
             Area_Exposure,
+            
             Mean_Flood_Duration,
             Percent_Flooded_Area,
             Parmanent_Water,
@@ -250,13 +269,25 @@ def predict_flood(state: str, district: str, req: FloodRequest):
 
         pred_ml = float(safe_predict(model, features)[0])
 
-        # STEP 5: Final risk interpretation
-        if pred_ml < 0.33:
+        computed_risk = Flood_Impact_Normalized
+        diff = abs(pred_ml - computed_risk)
+
+        if diff < 0.1:
+            final_score = (pred_ml + computed_risk) / 2
+        else:
+            if pred_ml > computed_risk:
+                final_score = pred_ml
+            else:
+                final_score = computed_risk
+
+        if final_score < 0.33:
             risk_level = "Low"
-        elif pred_ml < 0.66:
+        elif final_score < 0.66:
             risk_level = "Moderate"
         else:
             risk_level = "High"
+
+        pred = min(1.0, Flood_Impact_Normalized)
 
         features_for_frontend = {
             "temp": temp,
@@ -333,3 +364,59 @@ def logout(token: str):
 @app.get("/")
 def root():
     return {"message": "🌊 Early Flood Predictor API is running successfully!"}
+
+# ---------------- PREDICT USING COORDINATES ----------------
+
+class CoordinateRequest(BaseModel):
+    latitude: float
+    longitude: float
+
+@app.post("/predict-by-coordinates")
+def predict_by_coordinates(req: CoordinateRequest):
+
+    lat = req.latitude
+    lon = req.longitude
+
+    weather = get_weather(lat, lon)
+
+    temp = weather["main"]["temp"]
+    humidity = weather["main"]["humidity"]
+    wind = weather["wind"]["speed"]
+    rainfall = weather.get("rain", {}).get("1h", 0)
+
+    df = pd.DataFrame([{
+        "Temperature": temp,
+        "Humidity": humidity,
+        "Wind_Speed": wind,
+        "Rainfall": rainfall
+    }])
+
+    prediction = safe_predict(model, df)[0]
+
+    return {
+        "risk_score": float(prediction),
+        "temperature": temp,
+        "humidity": humidity,
+        "wind": wind,
+        "rainfall": rainfall
+    }
+
+
+# ---------------- FLOOD REPORT STORAGE ----------------
+class FloodReport(BaseModel):
+    latitude: float
+    longitude: float
+
+@app.post("/report-flood")
+def report_flood(data: FloodReport):
+
+    report = {
+        "lat": data.latitude,
+        "lon": data.longitude,
+        "time": datetime.now().isoformat()
+    }
+
+    with open("flood_reports.json","a") as f:
+        f.write(json.dumps(report) + "\n")
+
+    return {"message":"Flood report saved"}
