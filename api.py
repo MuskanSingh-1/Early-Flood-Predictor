@@ -13,8 +13,6 @@ import lightgbm as lgb
 import traceback
 from bot import router as chat_router
 
-app.include_router(chat_router)
-
 # WEATHER FETCH FUNCTION
 API_KEY = os.getenv("OPENWEATHER_API_KEY")
 
