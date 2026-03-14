@@ -51,7 +51,7 @@ def chat(req: ChatRequest):
         genai.configure(api_key=api_key)
 
         model = genai.GenerativeModel(
-            model_name="models/gemini-1.5-flasht",
+            model_name="models/gemini-1.5-flash",
             system_instruction=_CHAT_SYSTEM
         )
 
