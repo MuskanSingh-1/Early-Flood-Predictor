@@ -1,5 +1,5 @@
 import os
-import google.generativeai as genai
+from google import genai
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
