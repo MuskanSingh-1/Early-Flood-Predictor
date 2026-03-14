@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+requests
+pandas
+lightgbm
+scikit-learn
+python-multipart
+xgboost==1.7.6
+google-generativeai
