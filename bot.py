@@ -1,30 +1,32 @@
 import os
-from google import genai
+import google.generativeai as genai
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter()
 
-# System prompt for Gemini
+# System instruction for the AI assistant
 _CHAT_SYSTEM = """
 You are SACHETNA's AI Disaster Assistant — a professional, empathetic expert
 in flood safety, disaster preparedness, and emergency response for India.
 
 Guidelines:
 - Give clear, actionable, step-by-step advice on flood and disaster safety.
-- Keep responses concise: 3–6 sentences or a short numbered list. Use <br> for line breaks.
-- Prioritize life-safety above all else.
-- Reference Indian emergency numbers when relevant:
-  NDRF 011-24363260, Police 100, Ambulance 108.
-- Be calm, reassuring, and professional.
-- ONLY answer questions related to flood safety, disaster preparedness,
-  emergency response, monsoon safety, evacuation, and disaster first aid.
-- If asked unrelated questions say:
+- Keep responses concise: 3–6 sentences or a short numbered list.
+- Use <br> for line breaks.
+- Prioritize life safety.
+- Mention emergency numbers when useful:
+  Police 100, Ambulance 108, NDRF 011-24363260.
+- Stay calm and professional.
+- Only answer questions related to floods, disasters, evacuation,
+  emergency kits, safety precautions, and monsoon risks.
+- If the question is unrelated say:
   "I'm here to help with flood and disaster safety."
-- Respond in the same language as the user (Hindi or English).
-- Use simple HTML formatting (<strong>, <br>) only.
+- Respond in the same language the user uses (Hindi or English).
+- Use simple HTML like <strong> and <br>.
 """
+
 
 class ChatMessage(BaseModel):
     role: str
@@ -48,6 +50,8 @@ def chat(req: ChatRequest):
         )
 
     try:
+
+        # Configure Gemini API
         genai.configure(api_key=api_key)
 
         model = genai.GenerativeModel(
@@ -57,6 +61,7 @@ def chat(req: ChatRequest):
 
         history = []
 
+        # Convert frontend history into Gemini format
         for m in req.history[-10:]:
             if m.role in ("user", "assistant") and m.content.strip():
                 history.append({
