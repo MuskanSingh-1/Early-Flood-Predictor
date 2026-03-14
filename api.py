@@ -73,6 +73,8 @@ except Exception as e:
 user_handler = User()
 app = FastAPI(title="🌊 Early Flood Predictor API", version="3.0")
 
+app.include_router(chat_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
