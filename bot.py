@@ -6,7 +6,7 @@ from google import genai
 router = APIRouter()
 
 _CHAT_SYSTEM = """
-You are SACHETNA's AI Assistant inside the SACHETNA flood awareness app.
+You are MEGHDOOT an AI Assistant inside the SACHETNA flood awareness app.
 
 Your main purpose is to help users with:
 - flood safety
