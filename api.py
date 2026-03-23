@@ -10,16 +10,14 @@ import traceback
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
+from datetime import datetime, timedelta
 from scipy.spatial import KDTree
 
 from auth import User
 from bot import router as chat_router
 
 
-# ===============================
-# CONFIG
-# ===============================
+# CONFIGURATION
 
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 
@@ -28,28 +26,24 @@ TERRAIN_PATH = "terrain_lookup.json"
 COORDINATE_PATH = "indian_district_coordinates.json"
 
 
-# ===============================
 # LOAD MODEL
-# ===============================
 
 try:
     with open(MODEL_PATH, "rb") as f:
         model = pickle.load(f)
 
-    print("✅ XGBoost model loaded successfully")
+    print("XGBoost model loaded successfully")
 
 except Exception as e:
-    raise RuntimeError(f"❌ Failed to load model: {e}")
+    raise RuntimeError(f"Failed to load model: {e}")
 
 
-# ===============================
 # LOAD TERRAIN DATASET
-# ===============================
 
 with open("terrain_lookup.json", "r") as f:
     TERRAIN_DATA = json.load(f)
 
-print("✅ Terrain dataset loaded")
+print("Terrain dataset loaded")
 
 # Extract coordinates
 terrain_coords = [(p["lat"], p["lon"]) for p in TERRAIN_DATA]
@@ -57,16 +51,14 @@ terrain_coords = [(p["lat"], p["lon"]) for p in TERRAIN_DATA]
 # Build KDTree
 terrain_tree = KDTree(terrain_coords)
 
-print("✅ KDTree spatial index built")
+print("KDTree spatial index built")
 
 
-# ===============================
 # FASTAPI INITIALIZATION
-# ===============================
 
 user_handler = User()
 
-app = FastAPI(title="🌊 Early Flood Predictor API", version="4.0")
+app = FastAPI(title="Early Flood Predictor API", version="2.0")
 
 app.include_router(chat_router)
 
@@ -79,9 +71,7 @@ app.add_middleware(
 )
 
 
-# ===============================
 # REQUEST MODELS
-# ===============================
 
 class FloodRequest(BaseModel):
     timestamp: float = 0
@@ -103,14 +93,7 @@ class CoordinateRequest(BaseModel):
     longitude: float
 
 
-class FloodReport(BaseModel):
-    latitude: float
-    longitude: float
-
-
-# ===============================
 # DISTRICT COORDINATES
-# ===============================
 
 def get_coordinates(state: str, district: str):
 
@@ -130,9 +113,7 @@ def get_coordinates(state: str, district: str):
     return data[state_key][district_key]
 
 
-# ===============================
 # WEATHER FETCH
-# ===============================
 
 weather_cache = {}
 
@@ -168,10 +149,40 @@ def get_weather(lat, lon):
 
     return data
 
+def get_nasa_rainfall(lat, lon):
+    end = datetime.utcnow().strftime("%Y%m%d")
+    start = (datetime.utcnow() - timedelta(days=7)).strftime("%Y%m%d")
 
-# ===============================
+    url = "https://power.larc.nasa.gov/api/temporal/daily/point"
+
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "start": start,
+        "end": end,
+        "parameters": "PRECTOTCORR",
+        "community": "AG",
+        "format": "JSON"
+    }
+
+    try:
+        res = requests.get(url, params=params, timeout=10)
+        data = res.json()
+
+        daily = data["properties"]["parameter"]["PRECTOTCORR"]
+        values = list(daily.values())
+
+        rain_7d = sum(values)
+        rain_24h = values[-1] if values else 0
+
+        return rain_24h, rain_7d
+
+    except Exception as e:
+        print("NASA API error:", e)
+        return 0, 0
+
+
 # TERRAIN LOOKUP
-# ===============================
 
 def find_nearest_terrain(lat, lon):
 
@@ -180,11 +191,9 @@ def find_nearest_terrain(lat, lon):
     return TERRAIN_DATA[index]
 
 
-# ===============================
 # FEATURE GENERATION
-# ===============================
 
-def build_features(lat, lon, weather):
+def build_features(lat, lon, weather, rain_24h, rain_7d):
 
     terrain = find_nearest_terrain(lat, lon)
 
@@ -192,15 +201,15 @@ def build_features(lat, lon, weather):
 
     wind = weather.get("wind", {}).get("speed", 0)
 
-    rain_intensity = rainfall
+    prev_month_rain = (rain_7d / 7) * 30
+
+    rain_2month_sum = prev_month_rain + rain_7d
+
+    rain_intensity = rain_24h
 
     rain_momentum = rainfall * wind
 
-    prev_month_rain = rainfall * 20
-
-    rain_2month_sum = prev_month_rain + rainfall
-
-    monsoon_cumulative = rain_2month_sum
+    monsoon_cumulative = rain_7d
 
     monsoon_saturation = min(1, monsoon_cumulative / 500)
 
@@ -233,23 +242,27 @@ def build_features(lat, lon, weather):
     return features, rainfall, wind
 
 
-# ===============================
 # MAIN PREDICTION
-# ===============================
 
 @app.post("/predict/{state}/{district}")
 def predict_flood(state: str, district: str, req: FloodRequest):
 
     try:
-
         coords = get_coordinates(state, district)
 
-        weather = get_weather(coords["lat"], coords["lon"])
+        lat = coords["lat"]
+        lon = coords["lon"]
+
+        weather = get_weather(lat, lon)
+
+        rain_24h, rain_7d = get_nasa_rainfall(lat, lon)
 
         features, rainfall, wind = build_features(
-            coords["lat"],
-            coords["lon"],
-            weather
+            lat,
+            lon,
+            weather,
+            rain_24h,
+            rain_7d
         )
 
         X = np.array(features).reshape(1, -1)
@@ -264,32 +277,26 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             risk = "High"
 
         return {
-
             "state": state,
             "district": district,
-
             "risk_level": risk,
-
             "score": round(float(prob), 3),
-
             "features": {
                 "temp": weather["main"]["temp"],
                 "humidity": weather["main"]["humidity"],
                 "wind_speed": wind,
-                "rainfall": rainfall
+                "rainfall": rainfall,
+                "rain_24h": rain_24h,
+                "rain_7d": rain_7d
             }
         }
 
     except Exception as e:
-
         traceback.print_exc()
-
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ===============================
 # PREDICT BY COORDINATES
-# ===============================
 
 @app.post("/predict-by-coordinates")
 def predict_by_coordinates(req: CoordinateRequest):
@@ -320,9 +327,7 @@ def predict_by_coordinates(req: CoordinateRequest):
     }
 
 
-# ===============================
 # AUTHENTICATION
-# ===============================
 
 @app.post("/auth/signup")
 def signup(req: SignupRequest):
@@ -371,30 +376,8 @@ def logout(token: str):
 
     return {"status": "success"}
 
-
-# ===============================
-# FLOOD REPORTING
-# ===============================
-
-@app.post("/report-flood")
-def report_flood(data: FloodReport):
-
-    report = {
-        "lat": data.latitude,
-        "lon": data.longitude,
-        "time": datetime.now().isoformat()
-    }
-
-    with open("flood_reports.json", "a") as f:
-        f.write(json.dumps(report) + "\n")
-
-    return {"message": "Flood report saved"}
-
-
-# ===============================
 # ROOT ENDPOINT
-# ===============================
 
 @app.get("/")
 def root():
-    return {"message": "🌊 Early Flood Predictor API running"}
+    return {"message": "Early Flood Predictor API running"}
