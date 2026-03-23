@@ -58,7 +58,7 @@ print("KDTree spatial index built")
 
 user_handler = User()
 
-app = FastAPI(title="Early Flood Predictor API", version="2.0")
+app = FastAPI(title="🌊 Early Flood Predictor API", version="4.0")
 
 app.include_router(chat_router)
 
@@ -149,28 +149,30 @@ def get_weather(lat, lon):
 
     return data
 
-def get_nasa_rainfall(lat, lon):
-    end = datetime.utcnow().strftime("%Y%m%d")
-    start = (datetime.utcnow() - timedelta(days=7)).strftime("%Y%m%d")
+def get_openmeteo_rainfall(lat, lon):
+    from datetime import datetime, timedelta
 
-    url = "https://power.larc.nasa.gov/api/temporal/daily/point"
+    end = datetime.utcnow().date()
+    start = end - timedelta(days=7)
+
+    url = "https://archive-api.open-meteo.com/v1/archive"
 
     params = {
         "latitude": lat,
         "longitude": lon,
-        "start": start,
-        "end": end,
-        "parameters": "PRECTOTCORR",
-        "community": "AG",
-        "format": "JSON"
+        "start_date": start.strftime("%Y-%m-%d"),
+        "end_date": end.strftime("%Y-%m-%d"),
+        "daily": "precipitation_sum",
+        "timezone": "auto"
     }
 
     try:
         res = requests.get(url, params=params, timeout=10)
         data = res.json()
 
-        daily = data["properties"]["parameter"]["PRECTOTCORR"]
-        values = list(daily.values())
+        values = data.get("daily", {}).get("precipitation_sum", [])
+
+        values = [v for v in values if v is not None and v >= 0]
 
         rain_7d = sum(values)
         rain_24h = values[-1] if values else 0
@@ -178,9 +180,8 @@ def get_nasa_rainfall(lat, lon):
         return rain_24h, rain_7d
 
     except Exception as e:
-        print("NASA API error:", e)
+        print("Open-Meteo error:", e)
         return 0, 0
-
 
 # TERRAIN LOOKUP
 
@@ -201,7 +202,8 @@ def build_features(lat, lon, weather, rain_24h, rain_7d):
 
     wind = weather.get("wind", {}).get("speed", 0)
 
-    prev_month_rain = (rain_7d / 7) * 30
+    avg_daily_rain = rain_7d / 7 if rain_7d > 0 else 0
+    prev_month_rain = avg_daily_rain * 30
 
     rain_2month_sum = prev_month_rain + rain_7d
 
@@ -213,7 +215,7 @@ def build_features(lat, lon, weather, rain_24h, rain_7d):
 
     monsoon_saturation = min(1, monsoon_cumulative / 500)
 
-    rain_anomaly = rainfall - 10
+    rain_anomaly = rain_24h - 10
 
     extreme_rain = 1 if rainfall > 50 else 0
 
@@ -255,7 +257,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
 
         weather = get_weather(lat, lon)
 
-        rain_24h, rain_7d = get_nasa_rainfall(lat, lon)
+        rain_24h, rain_7d = get_openmeteo_rainfall(lat, lon)
 
         features, rainfall, wind = build_features(
             lat,
@@ -380,4 +382,4 @@ def logout(token: str):
 
 @app.get("/")
 def root():
-    return {"message": "Early Flood Predictor API running"}
+    return {"message": "🌊 Early Flood Predictor API running"}
