@@ -178,7 +178,7 @@ def get_openmeteo_rainfall(lat, lon):
         rain_7d = sum(values)
         rain_24h = values[-1] if values else 0
 
-        return rain_24h, rain_7d
+        return rain_24h, rain_7d, values
 
     except Exception as e:
         print("Open-Meteo error:", e)
@@ -308,15 +308,19 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         lat = coords["lat"]
         lon = coords["lon"]
 
+        # 🌤 Current weather
         weather = get_weather(lat, lon)
 
-        rain_24h, rain_7d = get_openmeteo_rainfall(lat, lon)
+        # 🌧 Past rainfall (IMPORTANT: includes last 7 days list)
+        rain_24h, rain_7d, past_7days = get_openmeteo_rainfall(lat, lon)
 
+        # 🔮 Forecast data
         forecast_list = get_forecast_data(lat, lon)
         daily_forecast = process_forecast_daily(forecast_list)
 
         future_predictions = []
 
+        # CURRENT PREDICTION
         features, rainfall, wind = build_features(
             lat,
             lon,
@@ -326,7 +330,6 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         )
 
         X = np.array(features).reshape(1, -1)
-
         prob = model.predict_proba(X)[0][1]
 
         if prob < 0.60:
@@ -336,36 +339,44 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         else:
             risk = "High"
 
-        # FUTURE PREDICTIONS
-        cumulative_rain = rain_7d
+        # FUTURE PREDICTIONS (FIXED)
+
+        # ✅ Rolling 7-day rainfall window
+        rolling_window = past_7days.copy()   # last 7 real days
+
         for day in daily_forecast:
 
-            cumulative_rain = cumulative_rain * 0.85 + day["rain"]
+            # ✅ Update rolling window
+            rolling_window.append(day["rain"])
+            rolling_window = rolling_window[-7:]
 
+            dynamic_rain_7d = sum(rolling_window)
             future_rain_24h = day["rain"]
 
+            # ✅ Build simulated weather
             fake_weather = {
                 "main": {
                     "temp": day["temp"],
                     "humidity": weather["main"]["humidity"]
                 },
                 "wind": {"speed": day["wind"]},
-                "rain": {"1h": day["rain_max"] / 3}
+                "rain": {"1h": day["rain_max"] / 3}   # peak intensity
             }
 
+            # ✅ Build features with dynamic rainfall
             features, _, _ = build_features(
                 lat,
                 lon,
                 fake_weather,
-                future_rain_24h, 
-                cumulative_rain      
+                future_rain_24h,
+                dynamic_rain_7d
             )
 
             X_future = np.array(features).reshape(1, -1)
             prob_future = model.predict_proba(X_future)[0][1]
 
-            steady_rain_flag = 1 if day["rain"] < 25 else 0
-            if steady_rain_flag:
+            # ✅ Adjust for steady rainfall (drainage effect)
+            if day["rain"] < 25:
                 prob_future *= 0.9
 
             future_predictions.append({
@@ -373,9 +384,11 @@ def predict_flood(state: str, district: str, req: FloodRequest):
                 "risk": round(float(prob_future), 3)
             })
 
+        # RESPONSE
         return {
             "state": state,
             "district": district,
+
             "current_prediction": {
                 "risk_level": risk,
                 "score": round(float(prob), 3)
