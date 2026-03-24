@@ -149,6 +149,7 @@ def get_weather(lat, lon):
 
     return data
 
+#Openmeteo
 def get_openmeteo_rainfall(lat, lon):
     from datetime import datetime, timedelta
 
@@ -172,7 +173,7 @@ def get_openmeteo_rainfall(lat, lon):
 
         values = data.get("daily", {}).get("precipitation_sum", [])
 
-        values = [v for v in values if v is not None and v >= 0]
+        values = [v for v in values if v is not None and v >= 0][-7:]
 
         rain_7d = sum(values)
         rain_24h = values[-1] if values else 0
@@ -182,6 +183,56 @@ def get_openmeteo_rainfall(lat, lon):
     except Exception as e:
         print("Open-Meteo error:", e)
         return 0, 0
+
+def get_forecast_data(lat, lon):
+    url = "https://api.openweathermap.org/data/2.5/forecast"
+
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": OPENWEATHER_API_KEY,
+        "units": "metric"
+    }
+
+    res = requests.get(url, params=params, timeout=10)
+    data = res.json()
+
+    return data["list"]
+
+def process_forecast_daily(forecast_list):
+    daily_data = {}
+
+    for item in forecast_list:
+        date = item["dt_txt"].split(" ")[0]
+
+        rain = item.get("rain", {}).get("3h", 0)
+        temp = item["main"]["temp"]
+        wind = item["wind"]["speed"]
+
+        if date not in daily_data:
+            daily_data[date] = {
+                "rain_total": 0,
+                "rain_max": 0,
+                "temp": [],
+                "wind": []
+            }
+
+        daily_data[date]["rain_total"] += rain
+        daily_data[date]["rain_max"] = max(daily_data[date]["rain_max"], rain)
+        daily_data[date]["temp"].append(temp)
+        daily_data[date]["wind"].append(wind)
+
+    result = []
+    for date, d in daily_data.items():
+        result.append({
+            "date": date,
+            "rain": d["rain_total"],
+            "rain_max": d["rain_max"],
+            "temp": sum(d["temp"]) / len(d["temp"]),
+            "wind": sum(d["wind"]) / len(d["wind"])
+        })
+
+    return result[:5]
 
 # TERRAIN LOOKUP
 
@@ -207,7 +258,9 @@ def build_features(lat, lon, weather, rain_24h, rain_7d):
 
     rain_2month_sum = prev_month_rain + rain_7d
 
-    rain_intensity = rain_24h
+    rain_variability = abs(rain_24h - (rain_7d / 7))
+
+    rain_intensity = rain_variability
 
     rain_momentum = rainfall * wind
 
@@ -259,6 +312,11 @@ def predict_flood(state: str, district: str, req: FloodRequest):
 
         rain_24h, rain_7d = get_openmeteo_rainfall(lat, lon)
 
+        forecast_list = get_forecast_data(lat, lon)
+        daily_forecast = process_forecast_daily(forecast_list)
+
+        future_predictions = []
+
         features, rainfall, wind = build_features(
             lat,
             lon,
@@ -278,11 +336,53 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         else:
             risk = "High"
 
+        # FUTURE PREDICTIONS
+        cumulative_rain = rain_7d
+        for day in daily_forecast:
+
+            cumulative_rain = cumulative_rain * 0.85 + day["rain"]
+
+            future_rain_24h = day["rain"]
+
+            fake_weather = {
+                "main": {
+                    "temp": day["temp"],
+                    "humidity": weather["main"]["humidity"]
+                },
+                "wind": {"speed": day["wind"]},
+                "rain": {"1h": day["rain_max"] / 3}
+            }
+
+            features, _, _ = build_features(
+                lat,
+                lon,
+                fake_weather,
+                future_rain_24h, 
+                cumulative_rain      
+            )
+
+            X_future = np.array(features).reshape(1, -1)
+            prob_future = model.predict_proba(X_future)[0][1]
+
+            steady_rain_flag = 1 if day["rain"] < 25 else 0
+            if steady_rain_flag:
+                prob_future *= 0.9
+
+            future_predictions.append({
+                "date": day["date"],
+                "risk": round(float(prob_future), 3)
+            })
+
         return {
             "state": state,
             "district": district,
-            "risk_level": risk,
-            "score": round(float(prob), 3),
+            "current_prediction": {
+                "risk_level": risk,
+                "score": round(float(prob), 3)
+            },
+
+            "future_predictions": future_predictions,
+
             "features": {
                 "temp": weather["main"]["temp"],
                 "humidity": weather["main"]["humidity"],
@@ -305,10 +405,14 @@ def predict_by_coordinates(req: CoordinateRequest):
 
     weather = get_weather(req.latitude, req.longitude)
 
+    rain_24h, rain_7d = get_openmeteo_rainfall(req.latitude, req.longitude)
+
     features, rainfall, wind = build_features(
         req.latitude,
         req.longitude,
-        weather
+        weather,
+        rain_24h,
+        rain_7d
     )
 
     X = np.array(features).reshape(1, -1)
