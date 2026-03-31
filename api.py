@@ -2,7 +2,6 @@ import os
 import json
 import pickle
 import requests
-import pandas as pd
 import numpy as np
 import time
 import traceback
@@ -37,9 +36,7 @@ try:
 except Exception as e:
     raise RuntimeError(f"Failed to load model: {e}")
 
-
 # LOAD TERRAIN DATASET
-
 with open("terrain_lookup.json", "r") as f:
     TERRAIN_DATA = json.load(f)
 
@@ -58,7 +55,7 @@ print("KDTree spatial index built")
 
 user_handler = User()
 
-app = FastAPI(title="🌊 Early Flood Predictor API", version="4.0")
+app = FastAPI(title="Early Flood Predictor API", version="2.0")
 
 app.include_router(chat_router)
 
@@ -154,7 +151,7 @@ def get_openmeteo_rainfall(lat, lon):
     from datetime import datetime, timedelta
 
     end = datetime.utcnow().date()
-    start = end - timedelta(days=7)
+    start = end - timedelta(days=30)
 
     url = "https://archive-api.open-meteo.com/v1/archive"
 
@@ -173,12 +170,21 @@ def get_openmeteo_rainfall(lat, lon):
 
         values = data.get("daily", {}).get("precipitation_sum", [])
 
-        values = [v for v in values if v is not None and v >= 0][-7:]
+        values = [v for v in values if v is not None and v >= 0]
 
-        rain_7d = sum(values)
-        rain_24h = values[-1] if values else 0
+        values_60d = values[-60:] if len(values) >= 60 else values
 
-        return rain_24h, rain_7d, values
+        if len(values_60d) >= 60:
+            previous_30d = sum(values_60d[:30])
+            current_30d = sum(values_60d[30:])
+        else:
+            current_30d = sum(values_60d)
+            previous_30d = current_30d * 0.8
+
+        rain_7d = sum(values_60d[-7:]) if len(values_60d) >= 7 else current_30d
+        rain_24h = values_60d[-2] if len(values_60d) > 1 else 0
+
+        return rain_24h, rain_7d, current_30d, previous_30d, values_60d
 
     except Exception as e:
         print("Open-Meteo error:", e)
@@ -206,6 +212,7 @@ def process_forecast_daily(forecast_list):
         date = item["dt_txt"].split(" ")[0]
 
         rain = item.get("rain", {}).get("3h", 0)
+        humidity = item["main"]["humidity"]
         temp = item["main"]["temp"]
         wind = item["wind"]["speed"]
 
@@ -213,12 +220,14 @@ def process_forecast_daily(forecast_list):
             daily_data[date] = {
                 "rain_total": 0,
                 "rain_max": 0,
+                "humidity": [],
                 "temp": [],
                 "wind": []
             }
 
         daily_data[date]["rain_total"] += rain
         daily_data[date]["rain_max"] = max(daily_data[date]["rain_max"], rain)
+        daily_data[date]["humidity"].append(humidity)
         daily_data[date]["temp"].append(temp)
         daily_data[date]["wind"].append(wind)
 
@@ -228,11 +237,12 @@ def process_forecast_daily(forecast_list):
             "date": date,
             "rain": d["rain_total"],
             "rain_max": d["rain_max"],
+            "humidity": sum(d["humidity"]) / len(d["humidity"]),
             "temp": sum(d["temp"]) / len(d["temp"]),
             "wind": sum(d["wind"]) / len(d["wind"])
         })
 
-    return result[:5]
+    return result
 
 # TERRAIN LOOKUP
 
@@ -245,26 +255,27 @@ def find_nearest_terrain(lat, lon):
 
 # FEATURE GENERATION
 
-def build_features(lat, lon, weather, rain_24h, rain_7d):
+def build_features(lat, lon, weather, rain_24h, rain_7d, current_30d, previous_30d):
 
     terrain = find_nearest_terrain(lat, lon)
 
-    rainfall = weather.get("rain", {}).get("1h", 0)
+    rainfall = current_30d
 
     wind = weather.get("wind", {}).get("speed", 0)
 
-    avg_daily_rain = rain_7d / 7 if rain_7d > 0 else 0
-    prev_month_rain = avg_daily_rain * 30
+    current_rain = weather.get("rain", {}).get("1h", 0)
 
-    rain_2month_sum = prev_month_rain + rain_7d
+    prev_month_rain = current_30d
+
+    rain_2month_sum = current_30d + previous_30d
 
     rain_variability = abs(rain_24h - (rain_7d / 7))
 
-    rain_intensity = rain_variability
+    rain_intensity = current_30d / 30
 
-    rain_momentum = rainfall * wind
+    rain_momentum = current_rain * wind
 
-    monsoon_cumulative = rain_7d
+    monsoon_cumulative = (0.6 * current_30d) + (0.4 * previous_30d)
 
     monsoon_saturation = min(1, monsoon_cumulative / 500)
 
@@ -304,17 +315,16 @@ def predict_flood(state: str, district: str, req: FloodRequest):
 
     try:
         coords = get_coordinates(state, district)
-
         lat = coords["lat"]
         lon = coords["lon"]
 
-        # 🌤 Current weather
+        # Current weather
         weather = get_weather(lat, lon)
 
-        # 🌧 Past rainfall (IMPORTANT: includes last 7 days list)
-        rain_24h, rain_7d, past_7days = get_openmeteo_rainfall(lat, lon)
+        # Past rainfall (60-day based)
+        rain_24h, rain_7d, current_30d, previous_30d, past_60days = get_openmeteo_rainfall(lat, lon)
 
-        # 🔮 Forecast data
+        # Forecast data
         forecast_list = get_forecast_data(lat, lon)
         daily_forecast = process_forecast_daily(forecast_list)
 
@@ -326,7 +336,9 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             lon,
             weather,
             rain_24h,
-            rain_7d
+            rain_7d,
+            current_30d,
+            previous_30d
         )
 
         X = np.array(features).reshape(1, -1)
@@ -339,50 +351,60 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         else:
             risk = "High"
 
-        # FUTURE PREDICTIONS (FIXED)
+        # FUTURE PREDICTIONS
 
-        # ✅ Rolling 7-day rainfall window
-        rolling_window = past_7days.copy()   # last 7 real days
+        # FIX: use last 7 days from 60-day history
+        rolling_window = past_60days[-7:].copy()
+        rolling_30d = past_60days[-30:].copy()
+        rolling_prev30d = past_60days[-60:-30].copy()
 
         for day in daily_forecast:
 
-            # ✅ Update rolling window
-            rolling_window.append(day["rain"])
-            rolling_window = rolling_window[-7:]
-
+            # use past-only data first
             dynamic_rain_7d = sum(rolling_window)
             future_rain_24h = day["rain"]
 
-            # ✅ Build simulated weather
+            current_30d = sum(rolling_30d)
+            previous_30d = sum(rolling_prev30d)
+
+            # Simulated weather for that day
             fake_weather = {
                 "main": {
                     "temp": day["temp"],
-                    "humidity": weather["main"]["humidity"]
+                    "humidity": day["humidity"],
                 },
                 "wind": {"speed": day["wind"]},
-                "rain": {"1h": day["rain_max"] / 3}   # peak intensity
+                "rain": {"1h": day["rain_max"] / 3}
             }
 
-            # ✅ Build features with dynamic rainfall
+            # pass correct params
             features, _, _ = build_features(
                 lat,
                 lon,
                 fake_weather,
                 future_rain_24h,
-                dynamic_rain_7d
+                dynamic_rain_7d,
+                current_30d,
+                previous_30d
             )
 
             X_future = np.array(features).reshape(1, -1)
             prob_future = model.predict_proba(X_future)[0][1]
 
-            # ✅ Adjust for steady rainfall (drainage effect)
-            if day["rain"] < 25:
-                prob_future *= 0.9
-
             future_predictions.append({
                 "date": day["date"],
                 "risk": round(float(prob_future), 3)
             })
+
+            # update AFTER prediction (correct time logic)
+            rolling_window.append(day["rain"])
+            rolling_window = rolling_window[-7:]
+
+            rolling_30d.append(day["rain"])
+            rolling_30d = rolling_30d[-30:]
+
+            rolling_prev30d.append(rolling_30d[0])
+            rolling_prev30d = rolling_prev30d[-30:]
 
         # RESPONSE
         return {
@@ -402,7 +424,9 @@ def predict_flood(state: str, district: str, req: FloodRequest):
                 "wind_speed": wind,
                 "rainfall": rainfall,
                 "rain_24h": rain_24h,
-                "rain_7d": rain_7d
+                "rain_7d": rain_7d,
+                "current_30d": current_30d,
+                "previous_30d": previous_30d
             }
         }
 
@@ -418,14 +442,16 @@ def predict_by_coordinates(req: CoordinateRequest):
 
     weather = get_weather(req.latitude, req.longitude)
 
-    rain_24h, rain_7d = get_openmeteo_rainfall(req.latitude, req.longitude)
+    rain_24h, rain_7d, current_30d, previous_30d, _ = get_openmeteo_rainfall(req.latitude, req.longitude)
 
-    features, rainfall, wind = build_features(
+    features, rainfall, wind = features(
         req.latitude,
         req.longitude,
         weather,
         rain_24h,
-        rain_7d
+        rain_7d,
+        current_30d, 
+        previous_30d
     )
 
     X = np.array(features).reshape(1, -1)
@@ -499,4 +525,4 @@ def logout(token: str):
 
 @app.get("/")
 def root():
-    return {"message": "🌊 Early Flood Predictor API running"}
+    return {"message": "Early Flood Predictor API running"}
