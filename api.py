@@ -422,7 +422,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
                 "temp": weather["main"]["temp"],
                 "humidity": weather["main"]["humidity"],
                 "wind_speed": wind,
-                "rainfall": rainfall,
+                "current_rain": current_rain,
                 "rain_24h": rain_24h,
                 "rain_7d": rain_7d,
                 "current_30d": current_30d,
