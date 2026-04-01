@@ -331,7 +331,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         future_predictions = []
 
         # CURRENT PREDICTION
-        features, rainfall, wind = build_features(
+        features, rainfall, wind, current_rain = build_features(
             lat,
             lon,
             weather,
@@ -378,7 +378,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             }
 
             # pass correct params
-            features, _, _ = build_features(
+            features, _, _, _ = build_features(
                 lat,
                 lon,
                 fake_weather,
