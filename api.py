@@ -305,7 +305,7 @@ def build_features(lat, lon, weather, rain_24h, rain_7d, current_30d, previous_3
         extreme_rain
     ]
 
-    return features, rainfall, wind
+    return features, rainfall, wind, current_rain
 
 
 # MAIN PREDICTION
@@ -364,8 +364,8 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             dynamic_rain_7d = sum(rolling_window)
             future_rain_24h = day["rain"]
 
-            current_30d = sum(rolling_30d)
-            previous_30d = sum(rolling_prev30d)
+            sim_current_30d = sum(rolling_30d)
+            sim_previous_30d = sum(rolling_prev30d)
 
             # Simulated weather for that day
             fake_weather = {
@@ -384,8 +384,8 @@ def predict_flood(state: str, district: str, req: FloodRequest):
                 fake_weather,
                 future_rain_24h,
                 dynamic_rain_7d,
-                current_30d,
-                previous_30d
+                sim_current_30d,
+                sim_previous_30d
             )
 
             X_future = np.array(features).reshape(1, -1)
