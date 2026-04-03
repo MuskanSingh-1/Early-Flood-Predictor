@@ -5,12 +5,15 @@ import requests
 import numpy as np
 import time
 import traceback
+import google.auth
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 from scipy.spatial import KDTree
+from google.oauth2 import service_account
+from google.auth.transport.requests import Request
 
 from auth import User
 from bot import router as chat_router
@@ -88,7 +91,6 @@ class LoginRequest(BaseModel):
 class CoordinateRequest(BaseModel):
     latitude: float
     longitude: float
-
 
 # DISTRICT COORDINATES
 
@@ -307,6 +309,41 @@ def build_features(lat, lon, weather, rain_24h, rain_7d, current_30d, previous_3
 
     return features, rainfall, wind, current_rain
 
+# NOTIFICATION FUNCTION
+SCOPES = ["https://www.googleapis.com/auth/firebase.messaging"]
+
+def get_access_token():
+    credentials = service_account.Credentials.from_service_account_file(
+        "service-account.json",
+        scopes=SCOPES
+    )
+    credentials.refresh(Request())
+    return credentials.token
+
+
+def send_notification(state, district):
+
+    access_token = get_access_token()
+
+    url = "https://fcm.googleapis.com/v1/projects/sachetna-9fd72/messages:send"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "message": {
+            "topic": "all",  
+            "notification": {
+                "title": "Flood Alert",
+                "body": f"High flood risk in {district}, {state}"
+            }
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+    print(response.text)
 
 # MAIN PREDICTION
 
@@ -352,6 +389,8 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             risk = "High"
 
         # FUTURE PREDICTIONS
+        if risk == "High":
+            send_notification(state, district)
 
         # FIX: use last 7 days from 60-day history
         rolling_window = past_60days[-7:].copy()
@@ -470,7 +509,6 @@ def predict_by_coordinates(req: CoordinateRequest):
 
         "rainfall": rainfall
     }
-
 
 # AUTHENTICATION
 
