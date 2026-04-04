@@ -392,6 +392,21 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         if risk == "High":
             send_notification(state, district)
 
+        coords = get_coordinates(state, district)
+
+        with user_handler.db.get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "DELETE FROM risk_markers WHERE state=? AND district=?",
+                (state, district)
+            )
+
+            if risk_level.lower() != "low":
+                cur.execute(
+                    "INSERT INTO risk_markers (state, district, risk, lat, lon, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+                    (state, district, risk_level, coords["lat"], coords["lon"], time.time())
+                )
+
         # FIX: use last 7 days from 60-day history
         rolling_window = past_60days[-7:].copy()
         rolling_30d = past_60days[-30:].copy()
@@ -559,13 +574,32 @@ def logout(token: str):
 
     return {"status": "success"}
 
-@app.get("/coordinates/{state}/{district}")
-def get_coords_api(state: str, district: str):
-    coords = get_coordinates(state, district)
-    return coords
-
 # ROOT ENDPOINT
 
 @app.get("/")
 def root():
     return {"message": "Early Flood Predictor API running"}
+
+@app.get("/coordinates/{state}/{district}")
+def get_coords_api(state: str, district: str):
+    coords = get_coordinates(state, district)
+    return coords
+
+# MARKER FETCH
+@app.get("/markers")
+def get_markers():
+    with user_handler.db.get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT state, district, risk, lat, lon FROM risk_markers")
+        rows = cur.fetchall()
+
+    return [
+        {
+            "state": r[0],
+            "district": r[1],
+            "risk": r[2],
+            "lat": r[3],
+            "lon": r[4]
+        }
+        for r in rows
+    ]
