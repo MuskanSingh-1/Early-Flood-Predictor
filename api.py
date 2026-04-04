@@ -559,6 +559,11 @@ def logout(token: str):
 
     return {"status": "success"}
 
+@app.get("/coordinates/{state}/{district}")
+def get_coords_api(state: str, district: str):
+    coords = get_coordinates(state, district)
+    return coords
+
 # ROOT ENDPOINT
 
 @app.get("/")
