@@ -381,12 +381,12 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         X = np.array(features).reshape(1, -1)
         prob = model.predict_proba(X)[0][1]
 
-        if prob > 0.65:
-            risk = "Low"
+        if prob < 0.65:
+            risk = "High"
         elif prob < 0.90:
             risk = "Moderate"
         else:
-            risk = "High"
+            risk = "Low"
 
         # FUTURE PREDICTIONS
         if risk == "High":
