@@ -381,9 +381,9 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         X = np.array(features).reshape(1, -1)
         prob = model.predict_proba(X)[0][1]
 
-        if prob > 0.65:
+        if prob < 0.65:
             risk = "Low"
-        elif prob > 0.90:
+        elif prob < 0.90:
             risk = "Moderate"
         else:
             risk = "High"
@@ -401,10 +401,10 @@ def predict_flood(state: str, district: str, req: FloodRequest):
                 (state, district)
             )
 
-            if risk_level.lower() != "low":
+            if risk.lower() != "low":
                 cur.execute(
                     "INSERT INTO risk_markers (state, district, risk, lat, lon, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
-                    (state, district, risk_level, coords["lat"], coords["lon"], time.time())
+                    (state, district, risk, coords["lat"], coords["lon"], time.time())
                 )
 
         # FIX: use last 7 days from 60-day history
