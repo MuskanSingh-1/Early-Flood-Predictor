@@ -138,6 +138,20 @@ class Database:
                 );
                 """
             )
+            # MAP data
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS risk_markers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    state TEXT,
+                    district TEXT,
+                    risk TEXT,
+                    lat REAL,
+                    lon REAL,
+                    timestamp REAL
+                );
+                """
+            )
             conn.commit()
 
     # -----------------------
