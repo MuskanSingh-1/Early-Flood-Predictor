@@ -313,17 +313,29 @@ def build_features(lat, lon, weather, rain_24h, rain_7d, current_30d, previous_3
 SCOPES = ["https://www.googleapis.com/auth/firebase.messaging"]
 
 def get_access_token():
-    credentials = service_account.Credentials.from_service_account_file(
-        "service-account.json",
-        scopes=SCOPES
-    )
-    credentials.refresh(Request())
-    return credentials.token
+    try:
+        service_account_info = json.loads(os.getenv("SERVICE_ACCOUNT_JSON"))
+
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info,
+            scopes=SCOPES
+        )
+
+        credentials.refresh(Request())
+        return credentials.token
+
+    except Exception as e:
+        print("Firebase config error:", e)
+        return None
 
 
 def send_notification(state, district):
 
     access_token = get_access_token()
+
+    if not access_token:
+        print("Skipping notification (Firebase not configured)")
+        return
 
     url = "https://fcm.googleapis.com/v1/projects/sachetna-9fd72/messages:send"
 
@@ -382,11 +394,11 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         prob = model.predict_proba(X)[0][1]
 
         if prob < 0.7:
-            risk = "High"
+            risk = "Low"
         elif prob < 0.9:
             risk = "Moderate"
         else:
-            risk = "Low"
+            risk = "High"
 
         # FUTURE PREDICTIONS
         if risk == "High":
