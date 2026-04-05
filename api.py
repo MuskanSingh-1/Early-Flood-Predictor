@@ -382,11 +382,11 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         prob = model.predict_proba(X)[0][1]
 
         if prob < 0.7:
-            risk = "Low"
+            risk = "High"
         elif prob < 0.9:
             risk = "Moderate"
         else:
-            risk = "High"
+            risk = "Low"
 
         # FUTURE PREDICTIONS
         if risk == "High":
@@ -586,20 +586,20 @@ def get_coords_api(state: str, district: str):
     return coords
 
 # MARKER FETCH
-@app.get("/markers")
-def get_markers():
+@app.get("/risk-markers")
+def get_risk_markers():
     with user_handler.db.get_conn() as conn:
         cur = conn.cursor()
         cur.execute("SELECT state, district, risk, lat, lon FROM risk_markers")
         rows = cur.fetchall()
 
-    return [
-        {
-            "state": r[0],
-            "district": r[1],
-            "risk": r[2],
-            "lat": r[3],
-            "lon": r[4]
-        }
-        for r in rows
-    ]
+        return [
+            {
+                "state": r["state"],
+                "district": r["district"],
+                "risk": r["risk"],
+                "lat": r["lat"],
+                "lon": r["lon"]
+            }
+            for r in rows
+        ]
