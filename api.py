@@ -382,11 +382,11 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         prob = model.predict_proba(X)[0][1]
 
         if prob < 0.7:
-            risk = "Low"
+            risk = "High"
         elif prob < 0.9:
             risk = "Moderate"
         else:
-            risk = "High"
+            risk = "Low"
 
         # FUTURE PREDICTIONS
         if risk == "High":
