@@ -346,11 +346,7 @@ def send_notification(state, district):
 
     payload = {
         "message": {
-            "topic": "all",  
-            "notification": {
-                "title": "Flood Alert",
-                "body": f"High flood risk in {district}, {state}"
-            },
+            "topic": "all",
             "data": {
                 "title": "Flood Alert",
                 "body": f"High flood risk in {district}, {state}"
