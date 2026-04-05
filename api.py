@@ -390,7 +390,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             previous_30d
         )
 
-        X = np.array(features).reshape(1, -1)
+        X = np.array(features_values).reshape(1, -1)
         prob = model.predict_proba(X)[0][1]
 
         if prob < 0.7:
@@ -401,7 +401,8 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             risk = "High"
 
         # FUTURE PREDICTIONS
-        if risk == "High":
+        if risk_level.lower() == "High":
+            print("HIGH RISK DETECTED - sending notification")
             send_notification(state, district)
 
         coords = get_coordinates(state, district)
@@ -510,7 +511,7 @@ def predict_by_coordinates(req: CoordinateRequest):
 
     rain_24h, rain_7d, current_30d, previous_30d, _ = get_openmeteo_rainfall(req.latitude, req.longitude)
 
-    features, rainfall, wind = features(
+    features, rainfall, wind, _ = features(
         req.latitude,
         req.longitude,
         weather,
