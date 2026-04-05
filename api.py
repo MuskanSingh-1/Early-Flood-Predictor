@@ -394,14 +394,14 @@ def predict_flood(state: str, district: str, req: FloodRequest):
         prob = model.predict_proba(X)[0][1]
 
         if prob < 0.7:
-            risk = "Low"
+            risk_level = "High"
         elif prob < 0.9:
-            risk = "Moderate"
+            risk_level = "Moderate"
         else:
-            risk = "High"
+            risk_level = "Low"
 
         # FUTURE PREDICTIONS
-        if risk_level.lower() == "High":
+        if risk_level.lower() == "high":
             print("HIGH RISK DETECTED - sending notification")
             send_notification(state, district)
 
@@ -414,7 +414,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
                 (state, district)
             )
 
-            if risk.lower() != "low":
+            if risk_level.lower() != "low":
                 cur.execute(
                     "INSERT INTO risk_markers (state, district, risk, lat, lon, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
                     (state, district, risk, coords["lat"], coords["lon"], time.time())
@@ -479,7 +479,7 @@ def predict_flood(state: str, district: str, req: FloodRequest):
             "district": district,
 
             "current_prediction": {
-                "risk_level": risk,
+                "risk_level": risk_level,
                 "score": round(float(prob), 3)
             },
 
@@ -511,7 +511,7 @@ def predict_by_coordinates(req: CoordinateRequest):
 
     rain_24h, rain_7d, current_30d, previous_30d, _ = get_openmeteo_rainfall(req.latitude, req.longitude)
 
-    features, rainfall, wind, _ = features(
+    features, rainfall, wind, _ = build_features(
         req.latitude,
         req.longitude,
         weather,
